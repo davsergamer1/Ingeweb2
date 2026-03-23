@@ -15,10 +15,15 @@ app.use(express.json());
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Servir frontend
-app.use(express.static(__dirname));
+// 🔥 SERVIR FRONTEND (CARPETA ../frontend)
+app.use(express.static(path.join(__dirname, "../frontend")));
 
-// API Gemini
+// 🔥 RUTA PRINCIPAL (INDEX.HTML)
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "../frontend/index.html"));
+});
+
+// 🔥 API GEMINI
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 app.post("/analizar", async (req, res) => {
@@ -47,11 +52,11 @@ ${codigo}
 
   } catch (error) {
     console.error("ERROR REAL:", error);
-    res.json({ resultado: "Error con IA (Gemini v3)" });
+    res.status(500).json({ resultado: "Error con IA (Gemini v3)" });
   }
 });
 
-// 🔥 IMPORTANTE: puerto dinámico
+// 🔥 PUERTO PARA RENDER
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
