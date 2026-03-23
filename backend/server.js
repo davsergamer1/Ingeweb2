@@ -31,13 +31,15 @@ app.post("/analizar", async (req, res) => {
     const { codigo } = req.body;
 
     const prompt = `
-Eres un experto en programación.
+Eres un experto en programación que puede detectar automáticamente el lenguaje de un código dado.
 
-Analiza este código y responde en español:
+Analiza este código y responde en español. Divide tu respuesta en secciones coloreadas:
 
 🔴 Errores
 🟡 Mejoras
 🟢 Buenas prácticas
+
+Además, indica al inicio qué lenguaje de programación detectaste.
 
 Código:
 ${codigo}
@@ -52,13 +54,12 @@ ${codigo}
 
   } catch (error) {
     console.error("ERROR REAL:", error);
-    res.status(500).json({ resultado: "Error con IA (Gemini v3)" });
+    res.status(500).json({ resultado: "❌ Error con IA (Gemini v3)" });
   }
 });
 
 // 🔥 PUERTO PARA RENDER
 const PORT = process.env.PORT || 3000;
-
 app.listen(PORT, () => {
   console.log("Servidor corriendo en puerto " + PORT);
 });

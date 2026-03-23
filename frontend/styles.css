@@ -4,6 +4,9 @@
   --box: #1e293b;
   --primary: #3b82f6;
   --accent: #22c55e;
+  --error: #f87171; /* rojo */
+  --mejora: #facc15; /* amarillo */
+  --buena: #4ade80; /* verde */
 }
 
 body.light {
@@ -84,6 +87,11 @@ button:hover {
   white-space: pre-line;
   line-height: 1.5;
 }
+
+/* Resaltar secciones */
+.error { color: var(--error); font-weight: bold; }
+.mejora { color: var(--mejora); font-weight: bold; }
+.buena { color: var(--buena); font-weight: bold; }
 
 /* Historial */
 #historial {

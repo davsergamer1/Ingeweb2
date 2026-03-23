@@ -15,7 +15,7 @@ async function analizarCodigo() {
   }
 
   loading.classList.remove("hidden");
-  resultadoDiv.textContent = "";
+  resultadoDiv.innerHTML = "";
 
   try {
     const res = await fetch("/analizar", {
@@ -25,9 +25,16 @@ async function analizarCodigo() {
     });
 
     const data = await res.json();
-    resultadoDiv.textContent = data.resultado;
 
-    historial.push({ codigo, resultado: data.resultado });
+    // Resaltar secciones
+    let html = data.resultado
+      .replace(/🔴 Errores/gi, '<span class="error">🔴 Errores</span>')
+      .replace(/🟡 Mejoras/gi, '<span class="mejora">🟡 Mejoras</span>')
+      .replace(/🟢 Buenas prácticas/gi, '<span class="buena">🟢 Buenas prácticas</span>');
+
+    resultadoDiv.innerHTML = html;
+
+    historial.push({ codigo, resultado: html });
     actualizarHistorial();
 
   } catch {
@@ -50,7 +57,7 @@ function actualizarHistorial() {
     li.textContent = "Consulta " + (i+1);
     li.onclick = () => {
       document.getElementById("codigo").value = item.codigo;
-      document.getElementById("resultado").textContent = item.resultado;
+      document.getElementById("resultado").innerHTML = item.resultado;
     };
     lista.appendChild(li);
   });
