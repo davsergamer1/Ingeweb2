@@ -18,7 +18,7 @@ async function analizarCodigo() {
   resultadoDiv.textContent = "";
 
   try {
-    const res = await fetch("http://localhost:3000/analizar", {
+    const res = await fetch("/analizar", {
       method: "POST",
       headers: {"Content-Type": "application/json"},
       body: JSON.stringify({ codigo })
