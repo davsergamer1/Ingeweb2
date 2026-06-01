@@ -24,14 +24,17 @@ function actualizarMeta() {
     ${lines} líneas`;
 }
 
-/* ── HELPERS ── */
+/* ── ESCAPE HTML ── */
 function escapeHtml(str) {
-  return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
 }
 
-/* ── RENDER RESULT ── */
+/* ── RENDER RESULTADO ── */
 function renderResultado(texto) {
-  // Detect language
+  // Detectar lenguaje
   const langMatch =
     texto.match(/lenguaje[^:]*:\s*\*?\*?([^\n*]+)\*?\*?/i) ||
     texto.match(/detectado[^:]*:\s*\*?\*?([^\n*]+)\*?\*?/i);
@@ -39,7 +42,6 @@ function renderResultado(texto) {
     document.getElementById("lang-pill").textContent = langMatch[1].trim();
   }
 
-  // Split into sections
   const sectionMap = {
     "🔴": { cls: "err",  label: "Errores" },
     "🟡": { cls: "warn", label: "Mejoras" },
@@ -78,12 +80,11 @@ function renderResultado(texto) {
   }
   flush();
 
-  // Preamble
-  let pre = "";
   const cleaned = preamble.replace(/\*\*/g, "").trim();
+  let pre = "";
   if (cleaned) {
     pre = `<div class="r-preamble">
-      <svg viewBox="0 0 24 24"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" width="14" height="14"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
       ${escapeHtml(cleaned)}
     </div>`;
   }
@@ -97,17 +98,68 @@ function renderResultado(texto) {
   document.getElementById("stat-errors").textContent  = errN;
   document.getElementById("stat-mejoras").textContent = warnN;
   document.getElementById("stat-buenas").textContent  = goodN;
-
   if (errN + warnN + goodN > 0) {
     document.getElementById("stats-row").style.display = "grid";
   }
 }
 
-/* ── CLEAR ── */
+/* ── CARGAR HISTORIAL DESDE FIREBASE ── */
+async function cargarHistorialDesdeDB() {
+  try {
+    const res = await fetch("/historial");
+    if (!res.ok) return;
+    const data = await res.json();
+    historialData.length = 0;
+    data.forEach(item => {
+      historialData.push({
+        codigo:    item.codigo,
+        resultado: item.resultado,
+        id:        item.id,
+        lenguaje:  item.lenguaje,
+      });
+    });
+    renderHistorial();
+  } catch (err) {
+    console.error("No se pudo cargar historial:", err);
+  }
+}
+
+/* ── RENDER HISTORIAL ── */
+function renderHistorial() {
+  const lista = document.getElementById("historial");
+  lista.innerHTML = "";
+
+  if (!historialData.length) {
+    lista.innerHTML = `<li style="pointer-events:none;opacity:.4;font-size:11px;">Sin consultas aún</li>`;
+    return;
+  }
+
+  [...historialData].forEach((item, i) => {
+    const li = document.createElement("li");
+    const first = item.codigo.trim().split("\n")[0] || "";
+    li.textContent = first.slice(0, 28) + (first.length > 28 ? "…" : "") || `Consulta ${i + 1}`;
+    li.title = item.lenguaje ? `[${item.lenguaje}] ${first}` : first;
+    li.onclick = () => {
+      document.getElementById("codigo").value = item.codigo;
+      actualizarMeta();
+      renderResultado(item.resultado);
+      document.getElementById("result-card").classList.add("visible");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    };
+    lista.appendChild(li);
+  });
+}
+
+/* ── LIMPIAR ── */
 function limpiar() {
   document.getElementById("codigo").value = "";
-  document.getElementById("resultado").innerHTML =
-    `<div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><span>El resultado aparecerá aquí</span></div>`;
+  document.getElementById("resultado").innerHTML = `
+    <div class="empty-state">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round">
+        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+      </svg>
+      <span>El resultado aparecerá aquí</span>
+    </div>`;
   document.getElementById("result-card").classList.remove("visible");
   document.getElementById("stats-row").style.display = "none";
   document.getElementById("lang-pill").textContent = "auto-detect";
@@ -119,13 +171,19 @@ function limpiarHistorial() {
   renderHistorial();
 }
 
-/* ── COPY ── */
+/* ── COPIAR ── */
 function copiarResultado() {
   const text = document.getElementById("resultado").innerText;
-  navigator.clipboard.writeText(text);
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.querySelector('[onclick="copiarResultado()"]');
+    if (btn) {
+      btn.style.color = "var(--green)";
+      setTimeout(() => { btn.style.color = ""; }, 1500);
+    }
+  });
 }
 
-/* ── ANALYZE ── */
+/* ── ANALIZAR ── */
 async function analizarCodigo() {
   const codigo = document.getElementById("codigo").value;
   const resultadoDiv = document.getElementById("resultado");
@@ -149,13 +207,31 @@ async function analizarCodigo() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ codigo }),
     });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.resultado || `HTTP ${res.status}`);
+    }
+
     const data = await res.json();
     renderResultado(data.resultado);
-    historialData.push({ codigo, resultado: data.resultado, id: data.id });
+
+    // Agregar al historial local
+    historialData.unshift({
+      codigo,
+      resultado: data.resultado,
+      id:        data.id,
+      lenguaje:  data.lenguaje,
+    });
     renderHistorial();
     resultCard.classList.add("visible");
-  } catch {
-    resultadoDiv.innerHTML = `<div class="empty-state"><span>❌ Error conectando con el servidor.</span></div>`;
+
+  } catch (err) {
+    console.error("Error analizar:", err.message);
+    resultadoDiv.innerHTML = `
+      <div class="empty-state">
+        <span>❌ ${err.message || "Error conectando con el servidor."}</span>
+      </div>`;
     resultCard.classList.add("visible");
   }
 
@@ -163,41 +239,20 @@ async function analizarCodigo() {
   btn.disabled = false;
 }
 
-/* ── HISTORIAL ── */
-function renderHistorial() {
-  const lista = document.getElementById("historial");
-  lista.innerHTML = "";
-
-  if (!historialData.length) {
-    lista.innerHTML = `<li style="pointer-events:none;opacity:.4;font-size:11px;">Sin consultas aún</li>`;
-    return;
-  }
-
-  [...historialData].reverse().forEach((item, i) => {
-    const li = document.createElement("li");
-    const first = item.codigo.trim().split("\n")[0] || "";
-    li.textContent = first.slice(0, 30) + (first.length > 30 ? "…" : "") || `Consulta ${historialData.length - i}`;
-    li.title = `Consulta ${historialData.length - i}`;
-    li.onclick = () => {
-      document.getElementById("codigo").value = item.codigo;
-      actualizarMeta();
-      renderResultado(item.resultado);
-      document.getElementById("result-card").classList.add("visible");
-    };
-    lista.appendChild(li);
-  });
-}
-
-/* ── KEYBOARD SHORTCUTS ── */
+/* ── INIT ── */
 document.addEventListener("DOMContentLoaded", () => {
-  renderHistorial();
+  // Cargar historial guardado en Firebase
+  cargarHistorialDesdeDB();
 
   const ta = document.getElementById("codigo");
+
+  // Ctrl+Enter → analizar
   ta.addEventListener("keydown", (e) => {
     if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
       e.preventDefault();
       analizarCodigo();
     }
+    // Tab → sangría
     if (e.key === "Tab") {
       e.preventDefault();
       const s = ta.selectionStart;
