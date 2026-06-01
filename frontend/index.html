@@ -2,39 +2,158 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Analizador IA PRO</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CodeLens — Analizador IA</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
 
-<div class="container">
+<div class="layout">
 
-  <div class="topbar">
-    <h1>🤖 Analizador IA</h1>
-    <button onclick="toggleModo()">🌙 / ☀️</button>
-  </div>
+  <!-- ─── SIDEBAR ─── -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-logo">
+        <svg viewBox="0 0 24 24"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+      </div>
+      <div class="brand-text">
+        <h1>CodeLens</h1>
+        <span>v2.0 · Gemini AI</span>
+      </div>
+    </div>
 
-  <div class="editor">
-    <textarea id="codigo" placeholder="Pega tu código aquí..."></textarea>
-  </div>
+    <nav class="sidebar-nav">
+      <div class="nav-item active">
+        <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+        Panel principal
+      </div>
+    </nav>
 
-  <div class="buttons">
-    <button onclick="analizarCodigo()">Analizar</button>
-    <button onclick="limpiar()">Limpiar</button>
-  </div>
+    <div class="hist-section">
+      <p class="hist-label">Recientes</p>
+      <ul id="historial"></ul>
+    </div>
 
-  <div id="loading" class="hidden">⏳ Analizando...</div>
+    <div class="sidebar-bottom">
+      <button class="btn" style="width:100%;justify-content:center;font-size:12px;" onclick="limpiarHistorial()">
+        <svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+        Limpiar historial
+      </button>
+    </div>
+  </aside>
 
-  <div class="result-box">
-    <h2>Resultado</h2>
-    <div id="resultado"></div>
-  </div>
+  <!-- ─── TOP NAV ─── -->
+  <header class="topnav">
+    <div class="breadcrumb">
+      <em>workspace</em> / <span>nuevo análisis</span>
+    </div>
+    <div class="topnav-actions">
+      <button class="btn btn-ghost btn-icon" onclick="toggleModo()" title="Cambiar tema">
+        <svg id="theme-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+      </button>
+    </div>
+  </header>
 
-  <div class="history-box">
-    <h2>Historial</h2>
-    <ul id="historial"></ul>
-  </div>
+  <!-- ─── MAIN ─── -->
+  <main class="main">
 
+    <!-- Stats (hidden until first analysis) -->
+    <div class="stats-row" id="stats-row" style="display:none">
+      <div class="stat errors">
+        <p class="s-label">Errores</p>
+        <p class="s-val" id="stat-errors">0</p>
+      </div>
+      <div class="stat mejoras">
+        <p class="s-label">Mejoras</p>
+        <p class="s-val" id="stat-mejoras">0</p>
+      </div>
+      <div class="stat buenas">
+        <p class="s-label">Buenas prácticas</p>
+        <p class="s-val" id="stat-buenas">0</p>
+      </div>
+    </div>
+
+    <!-- Editor -->
+    <div class="editor-card">
+      <div class="card-bar">
+        <div class="bar-left">
+          <div class="traffic-lights">
+            <div class="tl tl-r"></div>
+            <div class="tl tl-y"></div>
+            <div class="tl tl-g"></div>
+          </div>
+          <span class="card-filename">analysis.code</span>
+        </div>
+        <span class="lang-pill" id="lang-pill">auto-detect</span>
+      </div>
+
+      <textarea
+        id="codigo"
+        spellcheck="false"
+        autocorrect="off"
+        autocapitalize="off"
+        placeholder="# Pega tu código aquí...&#10;# Compatible con cualquier lenguaje de programación"
+        oninput="actualizarMeta()"
+      ></textarea>
+
+      <div class="editor-footer">
+        <div class="editor-meta">
+          <span class="meta-chip" id="meta-chars">
+            <svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h10M4 17h14"/></svg>
+            0 chars
+          </span>
+          <span class="meta-chip" id="meta-lines">
+            <svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+            0 líneas
+          </span>
+        </div>
+        <div class="editor-actions">
+          <button class="btn" onclick="limpiar()">
+            <svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>
+            Limpiar
+          </button>
+          <button class="btn btn-primary" onclick="analizarCodigo()" id="btn-analizar">
+            <svg viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+            Analizar
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <p class="hint-text">Tip: <kbd>Ctrl</kbd> + <kbd>Enter</kbd> para analizar · <kbd>Tab</kbd> inserta sangría</p>
+
+    <!-- Loading -->
+    <div class="loading-bar" id="loading">
+      <div class="spinner"></div>
+      <span>Analizando con Gemini AI...</span>
+    </div>
+
+    <!-- Result -->
+    <div class="result-card" id="result-card">
+      <div class="card-bar">
+        <div class="bar-left">
+          <div class="traffic-lights">
+            <div class="tl tl-r"></div>
+            <div class="tl tl-y"></div>
+            <div class="tl tl-g"></div>
+          </div>
+          <span class="card-filename">resultado.md</span>
+        </div>
+        <div style="display:flex;gap:6px;">
+          <button class="btn btn-ghost btn-icon" onclick="copiarResultado()" title="Copiar">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+          </button>
+        </div>
+      </div>
+      <div id="resultado">
+        <div class="empty-state">
+          <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <span>El resultado aparecerá aquí</span>
+        </div>
+      </div>
+    </div>
+
+  </main>
 </div>
 
 <script src="script.js"></script>
