@@ -3,7 +3,7 @@ import cors from "cors";
 import dotenv from "dotenv";
 import path from "path";
 import { fileURLToPath } from "url";
-import { GoogleGenAI } from "@google/genai";
+import Groq from "groq-sdk";
 import { guardarAnalisis, obtenerHistorial, eliminarAnalisis } from "./firebase.js";
 
 dotenv.config();
@@ -20,8 +20,8 @@ app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "../frontend/index.html"));
 });
 
-// ── GEMINI ──
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+// ── GROQ ──
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
 // ── ANALIZAR ──
 app.post("/analizar", async (req, res) => {
@@ -32,27 +32,38 @@ app.post("/analizar", async (req, res) => {
       return res.status(400).json({ resultado: "⚠️ No se recibió código." });
     }
 
-    const prompt = `
-Eres un experto en programación que puede detectar automáticamente el lenguaje de un código dado.
+    const completion = await groq.chat.completions.create({
+      model: "llama-3.3-70b-versatile",
+      messages: [
+        {
+          role: "system",
+          content: `Eres un experto en programación que detecta automáticamente el lenguaje de un código.
+Analiza el código del usuario y responde SIEMPRE en español.
+Estructura tu respuesta exactamente así:
 
-Analiza este código y responde en español. Divide tu respuesta en secciones:
+Primero indica el lenguaje detectado en una línea: "Lenguaje detectado: [lenguaje]"
+
+Luego divide tu análisis en estas secciones con estos emojis exactos:
 
 🔴 Errores
+(lista los errores encontrados, o indica que no hay errores)
+
 🟡 Mejoras
+(lista las mejoras sugeridas)
+
 🟢 Buenas prácticas
-
-Indica al inicio qué lenguaje de programación detectaste.
-
-Código:
-${codigo}
-`;
-
-    const response = await ai.models.generateContent({
-      model: "gemini-2.0-flash",
-      contents: prompt,
+(lista las buenas prácticas encontradas en el código)`
+        },
+        {
+          role: "user",
+          content: `Analiza este código:\n\n${codigo}`
+        }
+      ],
+      temperature: 0.3,
+      max_tokens: 1500,
     });
 
-    const resultado = response.text;
+    const resultado = completion.choices[0]?.message?.content || "No se pudo obtener respuesta.";
 
     // Detectar lenguaje
     const langMatch =
@@ -89,7 +100,7 @@ app.delete("/historial/:id", async (req, res) => {
     const ok = await eliminarAnalisis(req.params.id);
     res.json({ ok });
   } catch (error) {
-    console.error("ERROR /historial DELETE:", error.message);
+    console.error("ERROR DELETE:", error.message);
     res.status(500).json({ ok: false });
   }
 });
